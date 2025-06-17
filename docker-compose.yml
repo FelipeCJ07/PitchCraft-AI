@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://pitchcraft:pitchcraft123@db:5432/pitchcraft_db
+      - QDRANT_URL=http://qdrant:6333
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LINKEDIN_API_KEY=${LINKEDIN_API_KEY}
+      - HUBSPOT_API_KEY=${HUBSPOT_API_KEY}
+      - SALESFORCE_API_KEY=${SALESFORCE_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-pitchcraft_secret_key_2024}
+      - DEBUG=False
+    depends_on:
+      - db
+      - qdrant
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=pitchcraft_db
+      - POSTGRES_USER=pitchcraft
+      - POSTGRES_PASSWORD=pitchcraft123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  qdrant_data:
+
